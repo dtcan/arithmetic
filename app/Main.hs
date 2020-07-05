@@ -60,15 +60,18 @@ lexParse (x:xs) = do
             _ -> (lexemes, remaining ++ [x])
         lexParse xs
 
+parseInitState = (PARSE_EXPECT_EXPR, [], [])
 synParse :: [Lexeme] -> State (Program, [ParseStackElement]) (Exceptional Program)
 synParse [] = do
     (program, remaining) <- get
     return $ case remaining of
         [] -> Success program
-        _ -> Failure ("Error while parsing '"++(foldl (\x y -> x++(show y)) "" remaining)++"': Missing semicolon")
+        _ -> case (evalState (exprParse remaining) parseInitState) of
+            Success expr -> evalState (synParse []) (appendExpr program expr, [])
+            Failure error -> Failure ("Error while parsing '"++(foldl (\x y -> x++(show y)) "" remaining)++"': "++error)
 synParse (Semicolon:xs) = do
     (program, remaining) <- get
-    return $ case (evalState (exprParse remaining) (PARSE_EXPECT_EXPR, [], [])) of
+    return $ case (evalState (exprParse remaining) parseInitState) of
         Success expr -> evalState (synParse xs) (appendExpr program expr, [])
         Failure error -> Failure ("Error while parsing '"++(foldl (\x y -> x++(show y)) "" remaining)++";': "++error)
 synParse (x:xs) = do
