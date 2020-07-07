@@ -98,23 +98,23 @@ exprParse (x:xs) = do
                 [] -> evalState (exprParse ((PSExpr (Literal (read n))):xs)) (PARSE_EXPECT_EXPR, [], parseStack)
                 (reduceTop:reduceRest) -> evalState (exprParse ((PSExpr (Literal (read n))):xs)) (reduceTop, reduceRest, parseStack)
             (PSExpr expr) -> evalState (exprParse xs) (PARSE_EXPECT_OP_OR_END, reduceStack, x:parseStack)
-            (PSLexeme lex) -> (Failure ("Unexpected "++(show lex)))
+            (PSLexeme lex) -> (Failure ("Unexpected "++(show lex)++", was expecting expression"))
         PARSE_EXPECT_OP_OR_END -> case x of
             (PSLexeme (Operator '+')) -> evalState (exprParse xs) (PARSE_EXPECT_EXPR, PARSE_SUM_EXPECT_EXPR:reduceStack, x:parseStack)
             (PSLexeme (Operator '*')) -> evalState (exprParse xs) (PARSE_EXPECT_EXPR, PARSE_PROD_EXPECT_EXPR:reduceStack, x:parseStack)
-            _ -> (Failure ("Unexpected "++(show x)))
+            _ -> (Failure ("Unexpected "++(show x)++", was expecting an operator or end of expression"))
         PARSE_SUM_EXPECT_EXPR -> case x of
             (PSExpr expr) -> case (reduceStack, parseStack) of
                 ([], (PSLexeme (Operator '+')):((PSExpr expr2):parseRest)) -> evalState (exprParse ((PSExpr (Sum expr2 expr)):xs)) (PARSE_EXPECT_EXPR, [], parseRest)
                 (reduceTop:reduceRest, (PSLexeme (Operator '+')):((PSExpr expr2):parseRest)) -> evalState (exprParse ((PSExpr (Sum expr2 expr)):xs)) (reduceTop, reduceRest, parseRest)
-                _ -> (Failure ("Unexpected "++(show expr)))
-            (PSLexeme lex) -> (Failure ("Unexpected "++(show lex)))
+                _ -> (Failure ("Unexpected "++(show expr)++", missing +"))
+            (PSLexeme lex) -> (Failure ("Unexpected "++(show lex)++", was expecting 2nd expression in sum"))
         PARSE_PROD_EXPECT_EXPR -> case x of
             (PSExpr expr) -> case (reduceStack, parseStack) of
                 ([], (PSLexeme (Operator '*')):((PSExpr expr2):parseRest)) -> evalState (exprParse ((PSExpr (Product expr2 expr)):xs)) (PARSE_EXPECT_EXPR, [], parseRest)
                 (reduceTop:reduceRest, (PSLexeme (Operator '*')):((PSExpr expr2):parseRest)) -> evalState (exprParse ((PSExpr (Product expr2 expr)):xs)) (reduceTop, reduceRest, parseRest)
-                _ -> (Failure ("Unexpected "++(show expr)))
-            (PSLexeme lex) -> (Failure ("Unexpected "++(show lex)))
+                _ -> (Failure ("Unexpected "++(show expr)++", missing *"))
+            (PSLexeme lex) -> (Failure ("Unexpected "++(show lex)++", was expecting 2nd expression in product"))
 
 
 main :: IO ()
