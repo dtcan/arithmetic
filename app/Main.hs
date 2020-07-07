@@ -83,6 +83,17 @@ appendExpr :: Program -> Expr -> Program
 appendExpr Empty expr = Program expr Empty
 appendExpr (Program expr1 prog) expr2 = Program expr1 (appendExpr prog expr2)
 
+findSubexpression :: [ParseStackElement] -> State (Int, [ParseStackElement]) (Exceptional ([ParseStackElement], [ParseStackElement]))
+findSubexpression [] = return (Failure "")
+findSubexpression (x:xs) = do
+    (count, subExpr) <- get
+    return $ case x of
+        (PSLexeme LeftBracket) -> evalState (findSubexpression xs) (count + 1, subExpr++[x])
+        (PSLexeme RightBracket) -> if count == 0
+            then (Success (subExpr, xs))
+            else evalState (findSubexpression xs) (count - 1, subExpr++[x])
+        _ -> evalState (findSubexpression xs) (count, subExpr++[x])
+
 exprParse :: [ParseStackElement] -> State (ParseState, [ParseState], [ParseStackElement]) (Exceptional Expr)
 exprParse [] = do
     (state, reduceStack, parseStack) <- get
@@ -98,6 +109,13 @@ exprParse (x:xs) = do
                 [] -> evalState (exprParse ((PSExpr (Literal (read n))):xs)) (PARSE_EXPECT_EXPR, [], parseStack)
                 (reduceTop:reduceRest) -> evalState (exprParse ((PSExpr (Literal (read n))):xs)) (reduceTop, reduceRest, parseStack)
             (PSExpr expr) -> evalState (exprParse xs) (PARSE_EXPECT_OP_OR_END, reduceStack, x:parseStack)
+            (PSLexeme LeftBracket) -> case (evalState (findSubexpression xs) (0, [])) of
+                Success (subExpr, rest) -> case (evalState (exprParse subExpr) parseInitState) of
+                    Success expr -> case reduceStack of
+                        [] -> evalState (exprParse ((PSExpr expr):rest)) (PARSE_EXPECT_EXPR, [], parseStack)
+                        (reduceTop:reduceRest) -> evalState (exprParse ((PSExpr expr):rest)) (reduceTop, reduceRest, parseStack)
+                    Failure error -> (Failure error)
+                Failure error -> (Failure "Unexpected end of expression, was expecting )")
             (PSLexeme lex) -> (Failure ("Unexpected "++(show lex)++", was expecting expression"))
         PARSE_EXPECT_OP_OR_END -> case x of
             (PSLexeme (Operator '+')) -> evalState (exprParse xs) (PARSE_EXPECT_EXPR, PARSE_SUM_EXPECT_EXPR:reduceStack, x:parseStack)
